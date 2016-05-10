@@ -9,4 +9,5 @@ fastGitHack是一个.git泄露利用脚本，通过泄露的.git文件夹下的�
 * zlib解压文件，按原始的目录结构写入源代码
 
 
-## more fast, enjoy.
+##　效率
+write in c, so it is more fast than other githack tool.
