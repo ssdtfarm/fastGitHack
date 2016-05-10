@@ -344,7 +344,8 @@ main (int argc, char *argv[])
 {
     if (argc != 2)
     {
-	    printf ("usage ./main url\n");
+	    printf ("usage fastGitHack url\n"
+                "example: fastGitHack http://localhost/.git/index\n");
 	    exit (0);
     }
     struct url_combo url_combo;
