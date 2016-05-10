@@ -8,4 +8,6 @@ fastGitHack是一个.git泄露利用脚本，通过泄露的.git文件夹下的�
 * 去.git/objects/ 文件夹下下载对应的文件
 * zlib解压文件，按原始的目录结构写入源代码
 * 
+
+
 ## more fast, enjoy.
