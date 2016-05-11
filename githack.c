@@ -325,10 +325,9 @@ mk_dir (char *path)
 }
 
 void 
-concat_object_url(Entry_body *entry_body, char *object_url, struct url_combo *url_combo) {
-        strcat (object_url, url_combo->protocol);
-        strcat (object_url, url_combo->host);
-        strcat (object_url, "/.git/objects/");
+concat_object_url(Entry_body *entry_body, char *object_url, char *url) {
+        strcat (object_url, url);
+        strcat (object_url, "/objects/");
         //printf("%s\n", sha12hex(entry_body->sha1));
         char dir[3];
         char *file_name = sha12hex (entry_body->sha1) + 2;
@@ -339,34 +338,50 @@ concat_object_url(Entry_body *entry_body, char *object_url, struct url_combo *ur
         strcat (object_url, file_name);
 }
 
-int
-main (int argc, char *argv[])
-{
+int check_argv(int argc, char *argv[]) {
     if (argc != 2)
     {
 	    printf ("usage fastGitHack url\n"
-                "example: fastGitHack http://localhost/.git/index\n");
-	    exit (0);
+                "example: fastGitHack http://localhost/.git\n");
+        return -1;
+
     }
-    struct url_combo url_combo;
+    if(strlen (argv[1]) > (BUFFER_SIZE - strlen("index"))) {
+        printf("url is to long");
+        return -1;
+    }
+    return 0;
+}
+
+int
+main (int argc, char *argv[])
+{
     FILE *index;
+    char index_url[BUFFER_SIZE];
+    int *index_socckfd, ent_num;
+    struct url_combo url_combo;
+    if (check_argv (argc, argv) == -1) {
+        exit(-1);
+    }
+    sprintf(index_url, "%s/index", argv[1]);
     parse_http_url (argv[1], &url_combo);
     mk_dir (url_combo.host);
     assert (chdir (url_combo.host) == 0);
-    int *sockfd = http_get (argv[1]);
-    touch_index_file (sockfd);
+    index_socckfd = http_get (index_url);
+    touch_index_file (index_socckfd);
     Magic_head *magic_head = (Magic_head *) malloc (sizeof (Magic_head));
     //Entry *entry = (Entry *) malloc (sizeof (Entry));
     if ((index = fopen ("./index", "r")) == NULL) {
-	    perror ("error");
-	    exit (0);
+	    perror ("open");
+	    exit (-1);
     }
     init_check (index, magic_head);
-    int ent_num = hex2dec (magic_head->file_num, 4);
+    ent_num = hex2dec (magic_head->file_num, 4);
     printf("find %d files, downloading~\n", ent_num);
     for (int i = 1; i <= ent_num; i++)
     {
         //entry->id = i;
+        int *sockfd;
         Entry_body *entry_body = (Entry_body *) malloc (sizeof (Entry_body));
         struct ce_body *ce_body = (struct ce_body*) malloc(sizeof (struct ce_body));
         //entry->entry_body = entry_body;
@@ -404,27 +419,16 @@ main (int argc, char *argv[])
         {
             perror ("fork");
         }
-        int process_num = 0;
-        //int status;
         if (pid == 0)
         {
             //printf ("%s\n", ce_body.name);
-            process_num++;
             ce_body->entry_body = entry_body;
             char object_url[BUFFER_SIZE] = {'\0'};
-            concat_object_url(entry_body, object_url, &url_combo);
+            concat_object_url (entry_body, object_url, argv[1]);
             int *sockfd2 = http_get (object_url);
             split_pathname (sockfd2, ce_body);
             close (*sockfd);
-            exit (0);
-        }
-        else
-        {
-            if (process_num == 10)
-            {
-                //waitpid (-1, &status, 0);
-                while(wait(NULL)!=-1){};
-            }
+            exit(0);
         }
         //touch_file(sockfd2, ce_body.name); 
         free(entry_body);
@@ -432,6 +436,6 @@ main (int argc, char *argv[])
     }
     fclose (index);
     free (magic_head);
-    while(wait(NULL)!=-1){};
+    while(wait(NULL) != -1){}
 }
 

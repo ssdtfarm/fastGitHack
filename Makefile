@@ -3,4 +3,4 @@ all:
 install:
 	mv fastGitHack /bin/
 clean:
-	rm -rf main
+	rm -rf /bin/fastGitHack

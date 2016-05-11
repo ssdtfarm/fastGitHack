@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
@@ -115,5 +116,5 @@ void touch_index_file (int *sockfd);
 
 void mk_dir (char *path);
 
-void concat_object_url(Entry_body *entry_body, char *object_url, struct url_combo *url_combo);
+void concat_object_url(Entry_body *entry_body, char *object_url, char *url);
 
