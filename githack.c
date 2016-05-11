@@ -11,7 +11,7 @@ hex2dec (unsigned char *hex, int len)
     strcat (format, format_prefix);
     for (int i = 0; i < len; i++)
     {
-	    strcat (format, "%x");
+	    strcat (format, "%02x");
     }
     sprintf (result, format, hex[0], hex[1], hex[2], hex[3]);
     free (format);
@@ -221,18 +221,19 @@ void touch_file_et(int *sockfd, const char *filename, int filesize){
     char *blob_header = blob_header_tmp;
     char* text = (char *) malloc(filesize + strlen(blob_header) + 1);
     unsigned long tlen = filesize + strlen(blob_header) + 1;
-    printf("%s\t%d\n", filename, filesize);
     if(uncompress(text, &tlen, buf, j+1) != Z_OK){  
         //printf("uncompress failed!\n");  
+        printf("%s \t%d \t%ld\033[31m[ok]\033[0m\n", filename, filesize, tlen);
         free(text);
         return;
     }  
+    printf("%s \t %d\033[35m[ok]\033[0m\n", filename, filesize);
     FILE *file = fopen(filename, "wb+");
-    char* blob = strchr(text, '\0') + 1;
+    //char* blob = strchr(text, '\0') + 1;
     //for(unsigned long i = 0l;i < strlen(blob); i++) {
     //        write(fd, &blob[i], 1);
     //}
-    fwrite(blob, 1, filesize, file);
+    fwrite(text + strlen(blob_header) + 1, 1, filesize, file);
     fclose(file);
     free(text);
     //free(buf);
