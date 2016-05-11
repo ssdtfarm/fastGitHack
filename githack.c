@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include "githack.h"
 
 int
@@ -223,11 +222,11 @@ void touch_file_et(int *sockfd, const char *filename, int filesize){
     unsigned long tlen = filesize + strlen(blob_header) + 1;
     if(uncompress(text, &tlen, buf, j+1) != Z_OK){  
         //printf("uncompress failed!\n");  
-        printf("%s \t%d \t%ld\033[31m[ok]\033[0m\n", filename, filesize, tlen);
+        printf("%s \033[31m[failed]\033[0m\n", filename);
         free(text);
         return;
     }  
-    printf("%s \t %d\033[35m[ok]\033[0m\n", filename, filesize);
+    printf("%s \033[35m[ok]\033[0m\n", filename);
     FILE *file = fopen(filename, "wb+");
     //char* blob = strchr(text, '\0') + 1;
     //for(unsigned long i = 0l;i < strlen(blob); i++) {
@@ -438,4 +437,3 @@ main (int argc, char *argv[])
     free (magic_head);
     while(wait(NULL) != -1){}
 }
-

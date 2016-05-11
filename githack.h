@@ -1,3 +1,6 @@
+#ifndef GITHACK_H
+#define GITHACK_H
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -118,3 +121,4 @@ void mk_dir (char *path);
 
 void concat_object_url(Entry_body *entry_body, char *object_url, char *url);
 
+#endif /* GITHACK_H */
