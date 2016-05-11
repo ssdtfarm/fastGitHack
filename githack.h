@@ -16,8 +16,8 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <zlib.h>
-#include <sys/mman.h>
 #include <sys/wait.h>
+#include <dirent.h>
 
 #define FALSE 0
 #define TRUE 1

@@ -8,11 +8,10 @@ hex2dec (unsigned char *hex, int len)
     memset (format, '\0', BUFFER_SIZE);
     char *format_prefix = "0x";
     strcat (format, format_prefix);
-    for (int i = 0; i < len; i++)
-    {
+    for (int i = 0; i < len; i++) {
 	    strcat (format, "%02x");
     }
-    sprintf (result, format, hex[0], hex[1], hex[2], hex[3]);
+    snprintf (result, BUFFER_SIZE, format, hex[0], hex[1], hex[2], hex[3]);
     free (format);
     return (int) strtol (result, NULL, 16);
 }
@@ -21,13 +20,12 @@ char *
 sha12hex (unsigned char *sha1)
 {
     char *result = (char *) calloc (sizeof (char), 41);
-    sprintf (result, "%02x%02x%02x%02x%02x%02x%02x%02x"
+    snprintf (result, 41, "%02x%02x%02x%02x%02x%02x%02x%02x"
 	     "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
 	     sha1[0], sha1[1], sha1[2], sha1[3], sha1[4],
 	     sha1[5], sha1[6], sha1[7], sha1[8], sha1[9],
 	     sha1[10], sha1[11], sha1[12], sha1[13], sha1[14],
 	     sha1[15], sha1[16], sha1[17], sha1[18], sha1[19]);
-    result[40] = '\0';
     return result;
 }
 
@@ -216,7 +214,7 @@ void touch_file_et(int *sockfd, const char *filename, int filesize){
         }
     }
     char blob_header_tmp[100];
-    sprintf(blob_header_tmp, "blob %d", filesize);
+    snprintf(blob_header_tmp, 100, "blob %d", filesize);
     char *blob_header = blob_header_tmp;
     char* text = (char *) malloc(filesize + strlen(blob_header) + 1);
     unsigned long tlen = filesize + strlen(blob_header) + 1;
@@ -311,11 +309,76 @@ touch_index_file (int *sockfd)
             write (fd, &ch, 1);
         }
     }
+    close(fd);
 }
+
+int 
+force_rm_dir(const char *path)
+{
+   DIR *d = opendir(path);
+   size_t path_len = strlen(path);
+   int r = -1;
+   if (d)
+   {
+      struct dirent *p;
+      r = 0;
+      while (!r && (p=readdir(d)))
+      {
+          int r2 = -1;
+          char *buf;
+          size_t len;
+          /* Skip the names "." and ".." as we don't want to recurse on them. */
+          if (!strcmp(p->d_name, ".") || !strcmp(p->d_name, ".."))
+          {
+             continue;
+          }
+          len = path_len + strlen(p->d_name) + 2; 
+          buf = malloc(len);
+          if (buf)
+          {
+             struct stat statbuf;
+             snprintf(buf, len, "%s/%s", path, p->d_name);
+             if (!stat(buf, &statbuf))
+             {
+                if (S_ISDIR(statbuf.st_mode))
+                {
+                   r2 = force_rm_dir(buf);
+                }
+                else
+                {
+                   r2 = unlink(buf);
+                }
+             }
+             free(buf);
+          }
+          r = r2;
+      }
+      closedir(d);
+   }
+   if (!r)
+   {
+      r = rmdir(path);
+   }
+   return r;
+}
+
 
 void
 mk_dir (char *path)
 {
+    char c;             
+    if (access (path, F_OK) == 0) {
+        /*force remote dir*/
+        printf("please input y(yes) to force remove exists dir or n(no) to exit process to continue. ");
+        c = getchar();
+        if(c != 'y') {
+            printf("process exit");
+            exit(0);
+        }
+        printf("force remove exists dir %s\n", path);
+        force_rm_dir(path);
+        printf("remove dir finish\n");
+    }
     if (mkdir (path, 0755) == -1)
     {
         perror ("mkdir error");
@@ -362,7 +425,7 @@ main (int argc, char *argv[])
     if (check_argv (argc, argv) == -1) {
         exit(-1);
     }
-    sprintf(index_url, "%s/index", argv[1]);
+    snprintf(index_url, BUFFER_SIZE, "%s/index", argv[1]);
     parse_http_url (argv[1], &url_combo);
     mk_dir (url_combo.host);
     assert (chdir (url_combo.host) == 0);
@@ -434,6 +497,9 @@ main (int argc, char *argv[])
         free(ce_body);
     }
     fclose (index);
+    /*remove index file*/
+    unlink("index");
     free (magic_head);
+    /*wait all child process*/
     while(wait(NULL) != -1){}
 }
