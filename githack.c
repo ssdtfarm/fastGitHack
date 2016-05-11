@@ -224,8 +224,7 @@ void touch_file_et(int *sockfd, const char *filename, int filesize){
     printf("%s\t%d\n", filename, filesize);
     if(uncompress(text, &tlen, buf, j+1) != Z_OK){  
         //printf("uncompress failed!\n");  
-        //free(text);
-        //close(fd);
+        free(text);
         return;
     }  
     FILE *file = fopen(filename, "wb+");
