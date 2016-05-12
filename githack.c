@@ -178,6 +178,12 @@ http_get (char *http_url)
 	    exit (1);
     }
     write (*sockfd, http_header_raw, strlen (http_header_raw));
+    unsigned char http_status[13];
+    read(*sockfd, http_status, 12);
+    http_status[12] = '\0';
+    if(strcmp(http_status, "HTTP/1.1 200")) {
+        return (int *)0;
+    }
     return sockfd;
 }
 
@@ -443,7 +449,7 @@ main (int argc, char *argv[])
     for (int i = 1; i <= ent_num; i++)
     {
         //entry->id = i;
-        int *sockfd;
+        int *sockfd2;
         Entry_body *entry_body = (Entry_body *) malloc (sizeof (Entry_body));
         struct ce_body *ce_body = (struct ce_body*) malloc(sizeof (struct ce_body));
         //entry->entry_body = entry_body;
@@ -488,14 +494,20 @@ main (int argc, char *argv[])
             char object_url[BUFFER_SIZE] = {'\0'};
             concat_object_url (entry_body, object_url, argv[1]);
             int *sockfd2 = http_get (object_url);
+            if(sockfd2 == NULL) {
+                printf("%s [NOT FOUND]\n", ce_body->name);
+                exit(0);
+            }
             split_pathname (sockfd2, ce_body);
-            close (*sockfd);
+            free(sockfd2);
+            close (*sockfd2);
             exit(0);
         }
         //touch_file(sockfd2, ce_body.name); 
         free(entry_body);
         free(ce_body);
     }
+    free(index_socckfd);
     fclose (index);
     /*remove index file*/
     unlink("index");
