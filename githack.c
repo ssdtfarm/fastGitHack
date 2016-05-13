@@ -446,10 +446,10 @@ main (int argc, char *argv[])
     init_check (index, magic_head);
     ent_num = hex2dec (magic_head->file_num, 4);
     printf("find %d files, downloading~\n", ent_num);
+    int process_num = 0;
     for (int i = 1; i <= ent_num; i++)
     {
         //entry->id = i;
-        int *sockfd2;
         Entry_body *entry_body = (Entry_body *) malloc (sizeof (Entry_body));
         struct ce_body *ce_body = (struct ce_body*) malloc(sizeof (struct ce_body));
         //entry->entry_body = entry_body;
@@ -483,10 +483,15 @@ main (int argc, char *argv[])
         ce_body->entry_len = entry_len;
         pad_entry (index, ce_body->entry_len);
         int pid;
+        if(process_num > 30) {
+            while(wait(NULL) != -1){}
+            process_num = 0;
+        }
         if ((pid = fork ()) == -1)
         {
             perror ("fork");
         }
+        process_num++ ;
         if (pid == 0)
         {
             //printf ("%s\n", ce_body.name);
