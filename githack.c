@@ -189,13 +189,13 @@ http_get (char *http_url)
     //char *filename = strrchr(url_combo.uri, '/') + 1;
     memset (http_header_raw, '\0', BUFFER_SIZE);
     strcat (http_header_raw, "GET ");
-    strcat (http_header_raw, url_combo.uri);
+    strncat (http_header_raw, url_combo.uri, 100);
     strcat (http_header_raw, " HTTP/1.1");
     strcat (http_header_raw, "\r\nHost: ");
-    strcat (http_header_raw, url_combo.host);
+    strncat (http_header_raw, url_combo.host, 100);
     strcat (http_header_raw, "\r\nReferer: ");
-    strcat (http_header_raw, url_combo.protocol);
-    strcat (http_header_raw, url_combo.host);
+    strncat (http_header_raw, url_combo.protocol, 10);
+    strncat (http_header_raw, url_combo.host, 100);
     strcat (http_header_raw, "\r\nUser-Agent:Mozilla/5.0 (X11; Linux x86_64) \
             AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2490.80 Safari/537.36");
     strcat (http_header_raw, "\r\nConnection: Close\r\n\r\n");
@@ -265,7 +265,7 @@ touch_file_et(int sockfd, const char *filename, int filesize){
         return;
     }
     char filepath[BUFFER_SIZE * 10] = { '\0' };
-    strcat (filepath, filename);
+    strncat (filepath, filename, BUFFER_SIZE * 10 - 1);
     int i = 0;
     char ch;
     unsigned char buf[filesize * 100];
@@ -323,8 +323,8 @@ touch_file_et(int sockfd, const char *filename, int filesize){
 int
 create_dir (const char *sPathName)
 {
-    char DirName[256];
-    strcpy (DirName, sPathName);
+    char DirName[256] = {'\0'};
+    strncpy (DirName, sPathName, 254);
     int i, len = strlen (DirName);
     if (DirName[len - 1] != '/')
         strcat (DirName, "/");
@@ -478,7 +478,7 @@ mk_dir (char *path)
 
 void
 concat_object_url(Entry_body *entry_body, char *object_url, char *url) {
-    strcat (object_url, url);
+    strncat (object_url, url, 300);
     strcat (object_url, "/objects/");
     //printf("%s\n", sha12hex(entry_body->sha1));
     char dir[3];
@@ -487,7 +487,7 @@ concat_object_url(Entry_body *entry_body, char *object_url, char *url) {
     dir[2] = '\0';
     strcat (object_url, dir);
     strcat (object_url, "/");
-    strcat (object_url, file_name);
+    strncat (object_url, file_name, 500);
 }
 
 int 
@@ -539,7 +539,8 @@ main (int argc, char *argv[])
         //entry->entry_body = entry_body;
         //printf("%ld\n", sizeof(Entry_body));
         fread (entry_body, sizeof(Entry_body), 1, index);
-        //printf("%d\t%d\n", hex2dec(entry_body->sd_ctime.sec, 4), hex2dec(entry_body->sd_mtime.nsec, 4));
+
+        //printf("%.24s\n", ctime(&tim));
         //printf("%d\n", hex2dec(entry_body->gid, 4));
         //printf("%d\n", hex2dec(entry_body->uid, 4));
         //printf("%d\n", hex2dec(entry_body->size, 4));
@@ -591,6 +592,7 @@ main (int argc, char *argv[])
             }
             //split_pathname (sockfd2, ce_body);
             touch_file_et (sockfd2, ce_body->name, hex2dec((ce_body->entry_body->size), 4));
+            //change_file_ac_time(entry_body, ce_body->name);
             free(entry_body);
             free(ce_body);
             close (sockfd2);

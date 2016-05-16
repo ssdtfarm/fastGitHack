@@ -5,9 +5,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#define __USE_XOPEN
 #include <time.h>
 #include <ctype.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
