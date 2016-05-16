@@ -18,6 +18,8 @@
 #include <zlib.h>
 #include <sys/wait.h>
 #include <dirent.h>
+#include <errno.h>
+#include <sys/select.h>
 
 #define FALSE 0
 #define TRUE 1
@@ -107,18 +109,26 @@ int get_ip_from_host (char *ipbuf, const char *host, int maxlen);
 
 void parse_http_url (char *http_url, struct url_combo *url_combo);
 
-int* http_get (char *http_url);
+void setnonblocking(int sockfd);
 
-void touch_file_et(int *sockfd, const char *filename, int filesize);
+void setblocking(int sockfd);
+
+int http_get (char *http_url);
+
+void touch_file_et(int sockfd, const char *filename, int filesize);
 
 int create_dir (const char *sPathName);
 
-void split_pathname (int *sockfd,struct ce_body* ce_body);
+void create_all_path_dir(struct ce_body *ce_body);
 
-void touch_index_file (int *sockfd);
+void touch_index_file (int sockfd);
 
 void mk_dir (char *path);
 
+int force_rm_dir(const char *path);
+
 void concat_object_url(Entry_body *entry_body, char *object_url, char *url);
+
+int check_argv(int argc, char *argv[]);
 
 #endif /* GITHACK_H */
