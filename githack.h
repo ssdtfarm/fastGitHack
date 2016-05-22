@@ -28,6 +28,8 @@
 #define BUFFER_SIZE 1024
 #define ENTRY_SIZE 62
 
+int default_port = 80;
+
 typedef struct _magic_head
 {
     unsigned char signature[4];
@@ -97,15 +99,15 @@ int signature_check (Magic_head * magic_head);
 
 int version_check (Magic_head * magic_head);
 
-void init_check (FILE * file, Magic_head * magic_head);
+void init_check (int sockfd, Magic_head * magic_head);
 
 int sed2bed (int value);
 
-void pad_entry (FILE * file, int entry_len);
+void pad_entry (int sockfd, int entry_len);
 
-char* get_name (FILE * file, int namelen, int *entry_len);
+char* get_name (int sockfd, int namelen, int *entry_len);
 
-void handle_version3orlater (FILE * file, int *entry_len);
+void handle_version3orlater (int sockfd, int *entry_len);
 
 int get_ip_from_host (char *ipbuf, const char *host, int maxlen);
 
@@ -115,15 +117,15 @@ void setnonblocking(int sockfd);
 
 void setblocking(int sockfd);
 
-int http_get (char *http_url);
+ssize_t writen(int fd, const void *vptr, size_t n);
 
-void touch_file_et(int sockfd, const char *filename, int filesize);
+int http_get (char *http_url, int port);
+
+int touch_file_et(int sockfd, const char *filename, int filesize);
 
 int create_dir (const char *sPathName);
 
 void create_all_path_dir(struct ce_body *ce_body);
-
-void touch_index_file (int sockfd);
 
 void mk_dir (char *path);
 
@@ -132,5 +134,9 @@ int force_rm_dir(const char *path);
 void concat_object_url(Entry_body *entry_body, char *object_url, char *url);
 
 int check_argv(int argc, char *argv[]);
+
+ssize_t readn(int fd, void *vptr, size_t n);
+
+void parse_index_file (int sockfd, char *url);
 
 #endif /* GITHACK_H */

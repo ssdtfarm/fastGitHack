@@ -1,16 +1,21 @@
 #include "githack.h"
 
+
+
 int
 hex2dec (unsigned char *hex, int len)
 {
     char    result[BUFFER_SIZE];
-    char    *format = (char *) calloc (sizeof (char), BUFFER_SIZE);
+    char    *format; 
+    char    *format_prefix = "0x";
+
+    format = (char *) calloc (sizeof (char), BUFFER_SIZE);
     memset (format, '\0', BUFFER_SIZE);
-    char *format_prefix = "0x";
     strcat (format, format_prefix);
     for (int i = 0; i < len; i++) {
         strcat (format, "%02x");
     }
+
     snprintf (result, BUFFER_SIZE, format, hex[0], hex[1], hex[2], hex[3]);
     free (format);
     return (int) strtol (result, NULL, 16);
@@ -19,7 +24,9 @@ hex2dec (unsigned char *hex, int len)
 char *
 sha12hex (unsigned char *sha1)
 {
-    char *result = (char *) calloc (sizeof (char), 41);
+    char    *result;
+
+    result = (char *) calloc (sizeof (char), 41);
     snprintf (result, 41, "%02x%02x%02x%02x%02x%02x%02x%02x"
             "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
             sha1[0], sha1[1], sha1[2], sha1[3], sha1[4],
@@ -41,14 +48,16 @@ signature_check (Magic_head * magic_head)
 int
 version_check (Magic_head * magic_head)
 {
-    int version = hex2dec (magic_head->version, 4);
+    int     version;
+
+    version = hex2dec (magic_head->version, 4);
     return version == 2 || version == 3 || version == 4 ? TRUE : FALSE;
 }
 
 void
-init_check (FILE * file, Magic_head * magic_head)
+init_check (int sockfd, Magic_head * magic_head)
 {
-    fread (magic_head, sizeof (Magic_head), 1, file);
+    read (sockfd, magic_head, sizeof (Magic_head));
     assert (signature_check (magic_head) == TRUE);
     assert (version_check (magic_head) == TRUE);
 }
@@ -62,40 +71,46 @@ sed2bed (int value)
 }
 
 void
-pad_entry (FILE * file, int entry_len)
+pad_entry (int sockfd, int entry_len)
 {
-    char pad[1];
-    int padlen = (8 - (entry_len % 8)) ? (8 - (entry_len % 8)) : 8;
+    char pad;
+    int padlen; 
+
+    padlen = (8 - (entry_len % 8)) ? (8 - (entry_len % 8)) : 8;
     for (int i = 0; i < padlen; i++)
     {
-        fread (pad, 1, 1, file);
-        assert (pad[0] == '\0');
+        readn (sockfd, &pad, 1);
+        assert (pad == '\0');
     }
 
 }
 
 char *
-get_name (FILE * file, int namelen, int *entry_len)
+get_name (int sockfd, int namelen, int *entry_len)
 {
-    char *name = (char *) calloc (sizeof (char), 0xFFF);
+    char    *name;
+
+    name = (char *) calloc (sizeof (char), 0xFFF);
     if (namelen < 0xFFF)
     {
-        fread (name, 1, namelen, file);
+        readn (sockfd, name, namelen);
         name[namelen] = '\0';
         *entry_len += namelen;
     }
     else
     {
-        *entry_len += namelen; }
+        *entry_len += namelen; 
+    }
     return name;
 }
 
 void
-handle_version3orlater (FILE * file, int *entry_len)
+handle_version3orlater (int sockfd, int *entry_len)
 {
-    struct _extra_flags extra_flag;
-    unsigned char extra_flag_buf[2];
-    fread (extra_flag_buf, 1, 2, file);
+    struct _extra_flags     extra_flag;
+    unsigned char           extra_flag_buf[2];
+
+    readn (sockfd, extra_flag_buf, 2);
     //1-bit reserved for future
     extra_flag.reserved = hex2dec (extra_flag_buf, 2) & (0x0001 << 15);
     //1-bit skip-worktree flag (used by sparse checkout)
@@ -111,12 +126,14 @@ handle_version3orlater (FILE * file, int *entry_len)
 int
 get_ip_from_host (char *ipbuf, const char *host, int maxlen)
 {
-    struct sockaddr_in sa;
-    bzero(&sa, sizeof(sa));
+    struct hostent      *he;
+    struct sockaddr_in  sa;
+
+    bzero (&sa, sizeof(sa));
     sa.sin_family = AF_INET;
+
     if (inet_aton (host, &sa.sin_addr) == 0)
     {
-        struct hostent *he;
         he = gethostbyname (host);
         if (he == NULL)
             return -1;
@@ -129,7 +146,9 @@ get_ip_from_host (char *ipbuf, const char *host, int maxlen)
 void
 parse_http_url (char *http_url, struct url_combo *url_combo)
 {
-    int protocol_len = strchr (http_url, '/') - http_url + 2;
+    int     protocol_len;
+
+    protocol_len = strchr (http_url, '/') - http_url + 2;
     strncpy (url_combo->protocol, http_url, protocol_len);
     url_combo->protocol[protocol_len] = '\0';
     assert (!strcmp (url_combo->protocol, "http://")
@@ -144,12 +163,14 @@ void
 setnonblocking(int sockfd)  
 {  
     int     opts;  
+
     opts = fcntl (sockfd, F_GETFL);  
     if (opts < 0)  
     {  
         perror("fcntl(sock,GETFL)");  
         exit(-1);  
     }  
+
     opts |= O_NONBLOCK;  
     if (fcntl (sockfd, F_SETFL, opts) <0)  
     {  
@@ -162,12 +183,14 @@ void
 setblocking(int sockfd)  
 {  
     int     opts;  
+
     opts = fcntl(sockfd, F_GETFL);  
     if (opts<0)  
     {  
         perror("fcntl(sock,GETFL)");  
         exit(-1);  
     }  
+
     opts &=  ~O_NONBLOCK;  
     if (fcntl (sockfd, F_SETFL, opts) < 0)  
     {  
@@ -176,17 +199,92 @@ setblocking(int sockfd)
     }     
 }
 
+ssize_t
+writen(int fd, const void *vptr, size_t n)
+{
+    size_t         nleft;
+    ssize_t        nwritten;
+    const char*    ptr;
+
+    ptr = vptr;
+    nleft = n;
+    while (nleft > 0) {
+        if ( (nwritten = write(fd, ptr, nleft)) <= 0) {
+            if (nwritten < 0 && errno == EINTR)
+                nwritten = 0; /*and call write() again*/
+            else
+                return(-1);
+        }
+
+        nleft -= nwritten;
+        ptr += nwritten;
+    }
+    return(n);
+}
+
+ssize_t
+readline(int fd, void *vptr, size_t maxlen)
+{
+    ssize_t n, rc;
+    char    c,*ptr;
+    ptr = vptr;
+    for (n = 1; n < maxlen; n++) {
+    again:
+        if ( ( rc = read(fd, &c , 1)) == 1) {
+            *ptr++ = c;
+            if (c == '\n')
+                break;
+        } else if (rc == 0) {
+            *ptr = 0;
+            return(n - 1);
+        } else {
+            if (errno == EINTR)
+                goto again;
+            return(-1);
+        }
+    }
+    
+    *ptr = 0;
+    return(n);
+}
+
+ssize_t
+readn(int fd, void *vptr, size_t n)
+{
+    char    *ptr;
+    size_t  nleft;
+    ssize_t nread;
+
+    ptr = vptr;
+    nleft = n;
+    while (nleft > 0) {
+        if ( (nread = read(fd, ptr, nleft)) < 0) {
+            if (errno == EINTR) 
+                nread = 0; /*and call read() again*/
+            else
+                return(-1);
+        } else if (nread == 0)
+            break;          /*EOF*/
+        nleft -= nread;
+        ptr   += nread;
+    }
+    return(n - nleft);
+}
+
 
 int
-http_get (char *http_url)
+http_get (char *http_url, int port)
 {
-    struct url_combo url_combo;
-    int sockfd;
-    struct sockaddr_in address;
-    char ip[128];
-    char http_header_raw[BUFFER_SIZE];
+    fd_set  wset;
+    int     ready_n;
+    int     sockfd;
+    char    ip[128] = {'\0'};
+    struct  timeval tval;
+    struct  url_combo url_combo;
+    struct  sockaddr_in address;
+    char    http_header_raw[BUFFER_SIZE];
+
     parse_http_url (http_url, &url_combo);
-    //char *filename = strrchr(url_combo.uri, '/') + 1;
     memset (http_header_raw, '\0', BUFFER_SIZE);
     strcat (http_header_raw, "GET ");
     strncat (http_header_raw, url_combo.uri, 100);
@@ -199,22 +297,25 @@ http_get (char *http_url)
     strcat (http_header_raw, "\r\nUser-Agent:Mozilla/5.0 (X11; Linux x86_64) \
             AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2490.80 Safari/537.36");
     strcat (http_header_raw, "\r\nConnection: Close\r\n\r\n");
+
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if(sockfd < 0) {
         perror("create socket");
         exit(-1);
     }
+
     bzero(&address, sizeof(address));
     address.sin_family = AF_INET;
-    memset(ip, '\0', 128);
+    address.sin_port = htons(port);
     get_ip_from_host(ip, url_combo.host, 128);
     if (inet_pton (AF_INET, ip, &address.sin_addr) <= 0)
     {
         perror("inet_pton");
         exit(-1);
     }
-    address.sin_port = htons(80);
+
     setnonblocking(sockfd);
+
     int ret = connect(sockfd,  (struct sockaddr *)&address, sizeof(address));
     if (ret < 0) {
         if(errno == EINPROGRESS) {
@@ -224,33 +325,33 @@ http_get (char *http_url)
             exit(0);
         }
     }
-    fd_set wset;
-    struct timeval tval;
+
     FD_ZERO(&wset);
     FD_SET(sockfd, &wset);
     tval.tv_sec = 0;
     tval.tv_usec = 2000 * 1000; //300毫秒
-    int ready_n;
-    if ((ready_n = select(sockfd + 1, NULL, &wset, NULL, &tval)) == 0) {
+
+    if ((ready_n = select (sockfd + 1, NULL, &wset, NULL, &tval)) == 0) {
         close(sockfd); /* timeout */
         errno = ETIMEDOUT;
         perror("select timeout");
         exit(-1);
     }
+
     if (FD_ISSET(sockfd, &wset)) {
-        int error;
-        socklen_t len = sizeof (error);
+        int         error;
+        int         nwrite;
+        socklen_t   len;
+
+        len = sizeof (error);
         if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
             perror("getsockopt error.");
         }else{
-            int ret;
-            ret = write (sockfd, http_header_raw, strlen (http_header_raw));
-            if(ret < 0){
-                if(errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN){
-                    return sockfd;
-                }
+            if ( (nwrite = writen (sockfd, http_header_raw, strlen (http_header_raw))) == -1){
+                perror("write");
+                exit(-1);
             }
-            if(ret > 0) {
+            if(nwrite > 0) {
                 return sockfd;
             }
         }
@@ -259,24 +360,27 @@ http_get (char *http_url)
 }
 
 
-void 
+int 
 touch_file_et(int sockfd, const char *filename, int filesize){
-    if(!filesize) {
-        return;
+    int             nread, i = 0;
+    char            ch;
+    char            *blob_header,*text;
+    unsigned char   buf[filesize * 100];
+    unsigned long   tlen, j = 0l;
+    char            filepath[BUFFER_SIZE * 10] = { '\0' };
+    char            blob_header_tmp[100];
+
+    if (!filesize) {
+        return 0;
     }
-    char filepath[BUFFER_SIZE * 10] = { '\0' };
     strncat (filepath, filename, BUFFER_SIZE * 10 - 1);
-    int i = 0;
-    char ch;
-    unsigned char buf[filesize * 100];
-    unsigned long j = 0l;
-    int ret;
     //setnonblocking(sockfd);
-    while ((ret = read (sockfd, &ch, 1)) != 0)
+    while ((nread = read (sockfd, &ch, 1)) != 0)
     {
-        if(ret < 0) {
+        if(nread < 0) {
             if(errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN){
-                continue;
+                nread = 0;
+                continue; /*and call read() again*/
             }else{
                 perror("read");
                 exit(-1);
@@ -296,36 +400,34 @@ touch_file_et(int sockfd, const char *filename, int filesize){
             buf[j++] = ch;
         }
     }
-    char blob_header_tmp[100];
+
     snprintf(blob_header_tmp, 100, "blob %d", filesize);
-    char *blob_header = blob_header_tmp;
-    char* text = (char *) malloc(filesize + strlen(blob_header) + 1);
-    unsigned long tlen = filesize + strlen(blob_header) + 1;
+    blob_header = blob_header_tmp;
+    text = (char *) malloc(filesize + strlen(blob_header) + 1);
+    tlen = filesize + strlen(blob_header) + 1;
     if(uncompress(text, &tlen, buf, j+1) != Z_OK){
         //printf("uncompress failed!\n");
-        printf("%s \033[31m[failed]\033[0m\n", filename);
+        printf("%s \033[31m[FAILED]\033[0m\n", filename);
         free(text);
-        return;
+        return 0;
     }
-    printf("%s \033[35m[ok]\033[0m\n", filename);
+
+    printf("%s \033[35m[OK]\033[0m\n", filename);
+
     FILE *file = fopen(filename, "wb+");
-    //char* blob = strchr(text, '\0') + 1;
-    //for(unsigned long i = 0l;i < strlen(blob); i++) {
-    //        write(fd, &blob[i], 1);
-    //}
     fwrite(text + strlen(blob_header) + 1, 1, filesize, file);
     fclose(file);
     free(text);
-    //free(buf);
-    //close (fd);
+    return 1;
 }
 
 int
 create_dir (const char *sPathName)
 {
-    char DirName[256] = {'\0'};
-    strncpy (DirName, sPathName, 254);
+    char    DirName[256] = {'\0'};
     int i, len = strlen (DirName);
+
+    strncpy (DirName, sPathName, 254);
     if (DirName[len - 1] != '/')
         strcat (DirName, "/");
     len = strlen (DirName);
@@ -349,16 +451,19 @@ create_dir (const char *sPathName)
 
 void 
 create_all_path_dir(struct ce_body *ce_body){
-    char *result = strrchr (ce_body->name, '/');
+    char    *result;
+    char    dir[BUFFER_SIZE] = { '\0' };
+
+    result = strrchr (ce_body->name, '/');
     if (result)
     {
-        char dir[BUFFER_SIZE] = { '\0' };
         int dis = result - ce_body->name;
         if (dis > BUFFER_SIZE)
         {
             printf ("pathname is too long");
             exit (-1);
         }
+
         strncpy (dir, ce_body->name, dis);
         if (create_dir (dir) == -1)
         {
@@ -369,13 +474,13 @@ create_all_path_dir(struct ce_body *ce_body){
 }
 
 void
-touch_index_file (int sockfd)
+parse_index_file (int sockfd, char *url)
 {
-    int fd = open ("index", O_RDWR | O_CREAT,
-            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-    int i = 0;
-    char ch;
-    int ret;
+    char    ch;
+    int     ret, i = 0;
+
+    //int fd = open ("index", O_RDWR | O_CREAT,
+    //        S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     while ((ret = read (sockfd, &ch, 1)) != 0)
     {
         if(ret < 0) {
@@ -386,37 +491,105 @@ touch_index_file (int sockfd)
                 exit(-1);
             }
         }
-        if (i < 4)
-        {
-            if (ch == '\r' || ch == '\n'){
-                i++;
-            }
-            else{
-                i = 0;
-            }
-        }else
-        {
-            write (fd, &ch, 1);
+        if (ch == '\r' || ch == '\n'){
+            if (++i == 4)
+                goto handle_http_body;
+        }
+        else{
+            i = 0;
         }
     }
-    close(fd);
+
+    handle_http_body:
+    {
+        int         ent_num, i; 
+        Magic_head  *magic_head; 
+
+        magic_head = (Magic_head *) malloc (sizeof (Magic_head));
+        init_check(sockfd, magic_head);
+        ent_num = hex2dec (magic_head->file_num, 4);
+        printf("find %d files, downloading~\n", ent_num);
+        for (i = 1; i <= ent_num; i++)
+        {
+            int             namelen, entry_len = ENTRY_SIZE;
+            struct _flags   file_flags;
+            Entry_body      *entry_body; 
+            struct ce_body  *ce_body; 
+
+            entry_body  = (Entry_body *) malloc (sizeof (Entry_body));
+            ce_body = (struct ce_body*) malloc(sizeof (struct ce_body));
+            readn (sockfd, entry_body, sizeof(Entry_body));
+            file_flags.assume_valid = hex2dec (entry_body->ce_flags, 2) & (0x0001 << 15);
+            file_flags.extended = hex2dec (entry_body->ce_flags, 2) & (0x0001 << 14);
+            if(hex2dec(magic_head->version, 4) == 2) {
+                assert(file_flags.extended == 0);
+            }
+            file_flags.stage.stage_one =
+                hex2dec (entry_body->ce_flags, 2) & (0x0001 << 13);
+            file_flags.stage.stage_two =
+                hex2dec (entry_body->ce_flags, 2) & (0x0001 << 12);
+            namelen = hex2dec (entry_body->ce_flags, 2) & (0xFFFF >> 4);
+            if (file_flags.extended && hex2dec (magic_head->version, 4) >= 3)
+            {
+                handle_version3orlater (sockfd, &entry_len);
+            }
+
+            ce_body->name = get_name (sockfd, namelen, &entry_len);
+            ce_body->entry_len = entry_len;
+            pad_entry (sockfd, ce_body->entry_len);
+            create_all_path_dir(ce_body);
+
+            int pid;
+            if ((pid = fork ()) == -1)
+            {
+                perror ("fork");
+            }
+            if (pid == 0)
+            {
+                int     sockfd2;
+                char    object_url[BUFFER_SIZE] = {'\0'};
+
+                free (magic_head);
+
+                ce_body->entry_body = entry_body;
+                concat_object_url (entry_body, object_url, url);
+                sockfd2 = http_get (object_url, default_port);
+                if(sockfd2 <= 0) {
+                    printf("%s \033[31m[NOT FOUND]\033[0m\n", ce_body->name);
+                    goto end;
+                }
+                touch_file_et (sockfd2, ce_body->name, hex2dec((ce_body->entry_body->size), 4));
+
+                end:
+                    free (entry_body);
+                    free (ce_body);
+                    close (sockfd2);
+                    exit(0);
+            }
+            free (entry_body);
+            free (ce_body);
+        }    
+        free (magic_head);
+        while(wait(NULL) != -1){}
+    }
 }
 
 int
 force_rm_dir(const char *path)
 {
-    DIR *d = opendir(path);
-    size_t path_len = strlen(path);
-    int r = -1;
+    DIR     *d;
+    size_t  path_len, len;
+    int     r = -1, r2 = -1;
+    struct  dirent *p;
+    char    *buf;
+
+    d = opendir(path);
+    path_len = strlen(path);
     if (d)
     {
-        struct dirent *p;
         r = 0;
         while (!r && (p=readdir(d)))
         {
-            int r2 = -1;
-            char *buf;
-            size_t len;
             /* Skip the names "." and ".." as we don't want to recurse on them. */
             if (!strcmp(p->d_name, ".") || !strcmp(p->d_name, ".."))
             {
@@ -456,19 +629,23 @@ force_rm_dir(const char *path)
 void
 mk_dir (char *path)
 {
-    char c;
+    char    c;
+
     if (access (path, F_OK) == 0) {
         /*force remote dir*/
         printf("please input y(yes) to force remove exists dir or n(no) to exit process to continue. ");
+
         c = getchar();
         if(c != 'y') {
             printf("process exit");
             exit(0);
         }
+
         printf("force remove exists dir %s\n", path);
         force_rm_dir(path);
         printf("remove dir finish\n");
     }
+
     if (mkdir (path, 0755) == -1)
     {
         perror ("mkdir error");
@@ -478,13 +655,13 @@ mk_dir (char *path)
 
 void
 concat_object_url(Entry_body *entry_body, char *object_url, char *url) {
+    char    dir[3] = {'\0'};
+
     strncat (object_url, url, 300);
     strcat (object_url, "/objects/");
     //printf("%s\n", sha12hex(entry_body->sha1));
-    char dir[3];
     char *file_name = sha12hex (entry_body->sha1) + 2;
     strncpy (dir, sha12hex (entry_body->sha1), 2);
-    dir[2] = '\0';
     strcat (object_url, dir);
     strcat (object_url, "/");
     strncat (object_url, file_name, 500);
@@ -492,13 +669,14 @@ concat_object_url(Entry_body *entry_body, char *object_url, char *url) {
 
 int 
 check_argv(int argc, char *argv[]) {
-    if (argc != 2)
+    if (argc < 2 || argc > 3)
     {
         printf ("usage fastGitHack url\n"
                 "example: fastGitHack http://localhost/.git\n");
         return -1;
 
     }
+
     if(strlen (argv[1]) > (BUFFER_SIZE - strlen("index"))) {
         printf("url is to long");
         return -1;
@@ -509,101 +687,23 @@ check_argv(int argc, char *argv[]) {
 int
 main (int argc, char *argv[])
 {
-    FILE *index;
-    char index_url[BUFFER_SIZE];
-    int index_socckfd, ent_num;
-    struct url_combo url_combo;
+    int     index_socckfd;
+    struct  url_combo url_combo;
+    char    index_url[BUFFER_SIZE];
+
+    if (argc == 3) {
+        default_port = atoi(argv[2]);
+    }
+
     if (check_argv (argc, argv) == -1) {
         exit(-1);
     }
-    snprintf(index_url, BUFFER_SIZE, "%s/index", argv[1]);
+
+    snprintf (index_url, BUFFER_SIZE, "%s/index", argv[1]);
     parse_http_url (argv[1], &url_combo);
     mk_dir (url_combo.host);
     assert (chdir (url_combo.host) == 0);
-    index_socckfd = http_get (index_url);
-    touch_index_file (index_socckfd);
-    Magic_head *magic_head = (Magic_head *) malloc (sizeof (Magic_head));
-    //Entry *entry = (Entry *) malloc (sizeof (Entry));
-    if ((index = fopen ("./index", "r")) == NULL) {
-        perror ("open");
-        exit (-1);
-    }
-    init_check (index, magic_head);
-    ent_num = hex2dec (magic_head->file_num, 4);
-    printf("find %d files, downloading~\n", ent_num);
-    for (int i = 1; i <= ent_num; i++)
-    {
-        Entry_body *entry_body = (Entry_body *) malloc (sizeof (Entry_body));
-        struct ce_body *ce_body = (struct ce_body*) malloc(sizeof (struct ce_body));
-        //entry->id = i;
-        //entry->entry_body = entry_body;
-        //printf("%ld\n", sizeof(Entry_body));
-        fread (entry_body, sizeof(Entry_body), 1, index);
 
-        //printf("%.24s\n", ctime(&tim));
-        //printf("%d\n", hex2dec(entry_body->gid, 4));
-        //printf("%d\n", hex2dec(entry_body->uid, 4));
-        //printf("%d\n", hex2dec(entry_body->size, 4));
-        //printf("%d\n", hex2dec(entry_body->ino, 4));
-        //printf("%d\n", (hex2dec(entry_body->file_mode, 4) & 0xF000) >> 12);
-        //printf("%o\n", hex2dec(entry_body->file_mode, 4) & 0x1FF);
-        //printf("%s\n", sha12hex(entry_body->sha1));
-        //printf("%s\n", file_url);
-        struct _flags file_flags;
-        file_flags.assume_valid = hex2dec (entry_body->ce_flags, 2) & (0x0001 << 15);
-        file_flags.extended = hex2dec (entry_body->ce_flags, 2) & (0x0001 << 14);
-        if(hex2dec(magic_head->version, 4) == 2) {
-            assert(file_flags.extended == 0);
-        }
-        file_flags.stage.stage_one =
-            hex2dec (entry_body->ce_flags, 2) & (0x0001 << 13);
-        file_flags.stage.stage_two =
-            hex2dec (entry_body->ce_flags, 2) & (0x0001 << 12);
-        int namelen = hex2dec (entry_body->ce_flags, 2) & (0xFFFF >> 4);
-        int entry_len = ENTRY_SIZE;
-        if (file_flags.extended && hex2dec (magic_head->version, 4) >= 3)
-        {
-            handle_version3orlater (index, &entry_len);
-        }
-        ce_body->name = get_name (index, namelen, &entry_len);
-        ce_body->entry_len = entry_len;
-        pad_entry (index, ce_body->entry_len);
-        create_all_path_dir(ce_body);
-        int pid;
-        //if(process_num > 20) {
-        //    while(wait(NULL) != -1) {}
-        //    process_num = 0;
-        //}
-        if ((pid = fork ()) == -1)
-        {
-            perror ("fork");
-        }
-        //process_num++;
-        if (pid == 0)
-        {
-            ce_body->entry_body = entry_body;
-            char object_url[BUFFER_SIZE] = {'\0'};
-            concat_object_url (entry_body, object_url, argv[1]);
-            int sockfd2 = http_get (object_url);
-            if(sockfd2 <= 0) {
-                printf("%s [NOT FOUND]\n", ce_body->name);
-                close (sockfd2);
-                exit(0);
-            }
-            //split_pathname (sockfd2, ce_body);
-            touch_file_et (sockfd2, ce_body->name, hex2dec((ce_body->entry_body->size), 4));
-            //change_file_ac_time(entry_body, ce_body->name);
-            free(entry_body);
-            free(ce_body);
-            close (sockfd2);
-            exit(0);
-        }
-        //touch_file(sockfd2, ce_body.name);
-    }
-    fclose (index);
-    /*remove index file*/
-    unlink("index");
-    free (magic_head);
-    /*wait all child process*/
-    while(wait(NULL) != -1){}
+    index_socckfd = http_get (index_url, default_port);
+    parse_index_file (index_socckfd, argv[1]);
 }
