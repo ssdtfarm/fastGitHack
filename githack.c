@@ -1,24 +1,18 @@
 #include "githack.h"
 
-
-
 int
 hex2dec (unsigned char *hex, int len)
 {
-    char    result[BUFFER_SIZE];
-    char    *format; 
-    char    *format_prefix = "0x";
+    int   i;
+    char  tmp[3];
+    char  format[BUFFER_SIZE] = {'\0'};
 
-    format = (char *) calloc (sizeof (char), BUFFER_SIZE);
-    memset (format, '\0', BUFFER_SIZE);
-    strcat (format, format_prefix);
-    for (int i = 0; i < len; i++) {
-        strcat (format, "%02x");
+    strcat (format, "0x");
+    for (i = 0; i < len; i++) {
+        snprintf(tmp, sizeof(tmp), "%02x", hex[i]);
+        strcat(format, tmp);
     }
-
-    snprintf (result, BUFFER_SIZE, format, hex[0], hex[1], hex[2], hex[3]);
-    free (format);
-    return (int) strtol (result, NULL, 16);
+    return (int) strtol (format, NULL, 16);
 }
 
 char *
@@ -400,6 +394,7 @@ touch_file_et(int sockfd, const char *filename, int filesize){
             buf[j++] = ch;
         }
     }
+    close(sockfd);
 
     snprintf(blob_header_tmp, 100, "blob %d", filesize);
     blob_header = blob_header_tmp;
@@ -563,7 +558,6 @@ parse_index_file (int sockfd, char *url)
                 end:
                     free (entry_body);
                     free (ce_body);
-                    close (sockfd2);
                     exit(0);
             }
             free (entry_body);
@@ -706,4 +700,5 @@ main (int argc, char *argv[])
 
     index_socckfd = http_get (index_url, default_port);
     parse_index_file (index_socckfd, argv[1]);
+    close(index_socckfd);
 }
